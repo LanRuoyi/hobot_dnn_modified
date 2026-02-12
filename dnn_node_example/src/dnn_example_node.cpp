@@ -36,6 +36,7 @@
 #include "dnn_node/util/output_parser/detection/ptq_yolo3_darknet_output_parser.h"
 #include "dnn_node/util/output_parser/detection/ptq_yolo5_output_parser.h"
 #include "dnn_node/util/output_parser/detection/ptq_yolov5x_output_parser.h"
+#include "dnn_node/util/output_parser/detection/ptq_yolo11_output_parser.h"
 #include "dnn_node/util/output_parser/segmentation/ptq_unet_output_parser.h"
 
 #include "include/image_utils.h"
@@ -300,6 +301,9 @@ int DnnExampleNode::LoadConfig() {
     } else if ("yolov5x" == str_parser) {
       parser = DnnParserType::YOLOV5X_PARSER;
       ret = hobot::dnn_node::parser_yolov5x::LoadConfig(document);
+    } else if ("yolo11" == str_parser) {
+      parser = DnnParserType::YOLO11_PARSER;
+      ret = hobot::dnn_node::parser_yolo11::LoadConfig(document);
 #endif
     } else if ("classification" == str_parser) {
       parser = DnnParserType::CLASSIFICATION_PARSER;
@@ -315,7 +319,7 @@ int DnnExampleNode::LoadConfig() {
     } else {
       std::stringstream ss;
       ss << "Error! Invalid parser: " << str_parser
-         << " . Only yolov2, yolov3, yolov5, yolov5x, ssd, fcos"
+         << " . Only yolov2, yolov3, yolov5, yolov5x, yolo11, ssd, fcos"
          << " efficient_det, classification, unet are supported";
       RCLCPP_ERROR(rclcpp::get_logger("example"), "%s", ss.str().c_str());
       return -3;
@@ -409,6 +413,10 @@ int DnnExampleNode::PostProcess(
     case DnnParserType::YOLOV5X_PARSER:
       parse_ret =
           hobot::dnn_node::parser_yolov5x::Parse(node_output, det_result);
+      break;
+    case DnnParserType::YOLO11_PARSER: 
+      parse_ret = 
+        hobot::dnn_node::parser_yolo11::Parse(node_output, det_result);
       break;
   #endif
     case DnnParserType::CLASSIFICATION_PARSER:
