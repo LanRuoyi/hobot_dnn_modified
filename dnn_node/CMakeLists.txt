@@ -165,6 +165,7 @@ elseif(PLATFORM_X5)
     src/util/output_parser/detection/ptq_yolo2_output_parser.cpp
     src/util/output_parser/detection/ptq_yolo5_output_parser.cpp
     src/util/output_parser/detection/ptq_yolov5x_output_parser.cpp
+    src/util/output_parser/detection/ptq_yolo11_output_parser.cpp  # 新增
     src/util/output_parser/detection/fasterrcnn_output_parser.cpp
     src/util/output_parser/detection/ptq_efficientdet_output_parser.cpp
     src/util/output_parser/detection/ptq_ssd_output_parser.cpp

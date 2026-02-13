@@ -41,7 +41,7 @@ find_package(ai_msgs REQUIRED)
 find_package(dnn_node REQUIRED)
 find_package(hobot_cv REQUIRED)
 find_package(cv_bridge REQUIRED)
-find_package(OpenCV 3.4.5 REQUIRED)
+find_package(OpenCV 4.5.4 REQUIRED)
 
 option(SHARED_MEM "using shared mem" ON)
 if (${SHARED_MEM})
@@ -94,6 +94,7 @@ include_directories(include
 include_directories(
   ${SYS_ROOT}/usr/include/opencv/
   ${SYS_ROOT}/usr/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/../dnn_node/include
 )
 
 link_directories(
