@@ -37,7 +37,7 @@ def generate_launch_description():
 
     # args that can be set from the command line or a default will be used
     config_file_launch_arg = DeclareLaunchArgument(
-        "dnn_example_config_file", default_value=TextSubstitution(text="config/fcosworkconfig.json")
+        "dnn_example_config_file", default_value=TextSubstitution(text="config/yolo11workconfig.json")
     )
     dump_render_launch_arg = DeclareLaunchArgument(
         "dnn_example_dump_render_img", default_value=TextSubstitution(text="0")
@@ -72,6 +72,7 @@ def generate_launch_description():
                     get_package_share_directory('hobot_usb_cam'),
                     'launch/hobot_usb_cam.launch.py')),
             launch_arguments={
+                'usb_framerate': '25',
                 'usb_image_width': '640',
                 'usb_image_height': '480',
                 'usb_video_device': LaunchConfiguration('device')
