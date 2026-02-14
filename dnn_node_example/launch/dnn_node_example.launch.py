@@ -37,7 +37,7 @@ def generate_launch_description():
 
     # args that can be set from the command line or a default will be used
     config_file_launch_arg = DeclareLaunchArgument(
-        "dnn_example_config_file", default_value=TextSubstitution(text="config/yolo11workconfig.json")
+        "dnn_example_config_file", default_value=TextSubstitution(text="config/fcosworkconfig.json")
     )
     dump_render_launch_arg = DeclareLaunchArgument(
         "dnn_example_dump_render_img", default_value=TextSubstitution(text="0")
