@@ -46,8 +46,6 @@ struct PTQYolo11Config {
     }
     ss << "; class_num: " << class_num;
     ss << "; reg_dim: " << reg_dim;
-    ss << "; score_threshold: " << score_threshold;
-    ss << "; nms_threshold: " << nms_threshold;
     return ss.str();
   }
 };
@@ -82,7 +80,7 @@ int InitClassNames(const std::string &cls_name_file) {
     yolo11_config_.class_names.clear();
     std::string line;
     while (std::getline(fi, line)) {
-      yolo5_config_.class_names.push_back(line);
+      yolo11_config_.class_names.push_back(line);
     }
     int size = yolo11_config_.class_names.size();
     if(size != yolo11_config_.class_num){
@@ -186,7 +184,6 @@ static void ParseTensor(std::shared_ptr<DNNTensor> cls_tensor,
   float CONF_THRES_RAW = -std::log(1.0f / score_threshold_ - 1.0f);
   int REG = yolo11_config_.reg_dim;
   int stride = yolo11_config_.strides[layer];
-  int num_pred = yolo11_config_.class_num + 4;
 
   std::vector<float> class_pred(yolo11_config_.class_num, 0.0);
 
@@ -261,7 +258,7 @@ static void ParseTensor(std::shared_ptr<DNNTensor> cls_tensor,
               static_cast<int>(cls_id),
               score,
               bbox,
-              yolo11_config_.class_names[static_cast<int>(id)].c_str());
+              yolo11_config_.class_names[static_cast<int>(cls_id)].c_str());
 
           cls_raw += CLASSES_NUM;
           bbox_raw += REG * 4;

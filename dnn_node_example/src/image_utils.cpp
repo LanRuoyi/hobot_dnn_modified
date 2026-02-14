@@ -39,7 +39,7 @@ int ImageUtils::Render(
   memcpy(buf + img_y_size, uv_img, img_uv_size);
   cv::Mat nv12(height * 3 / 2, width, CV_8UC1, buf);
   cv::Mat mat;
-  cv::cvtColor(nv12, mat, COLOR_YUV2BGR_NV12);
+  cv::cvtColor(nv12, mat, cv::COLOR_YUV2BGR_NV12);
   delete[] buf;
 
   RCLCPP_INFO(rclcpp::get_logger("ImageUtils"),

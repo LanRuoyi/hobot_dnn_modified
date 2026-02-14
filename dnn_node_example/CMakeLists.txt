@@ -1,3 +1,4 @@
+
 # Copyright (c) 2024，Horizon Robotics.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -101,6 +102,7 @@ link_directories(
   ${SYS_ROOT}/usr/lib/hbbpu/
   ${SYS_ROOT}/usr/lib/hbmedia/
   ${SYS_ROOT}/usr/lib/
+  ${SYS_ROOT}/usr/hobot/lib/
 )
 
 add_executable(example
