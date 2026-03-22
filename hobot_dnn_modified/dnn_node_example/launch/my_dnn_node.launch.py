@@ -38,7 +38,7 @@ def generate_launch_description():
     # 启动参数（仅保留双路链路需要的最小集合）
     config_file_launch_arg = DeclareLaunchArgument(
         "dnn_example_config_file",
-        default_value=TextSubstitution(text="config/yolo11workconfig.json")
+        default_value=TextSubstitution(text="config/yolo11_b2workconfig.json")
     )
     dump_render_launch_arg = DeclareLaunchArgument(
         "dnn_example_dump_render_img",
@@ -88,7 +88,7 @@ def generate_launch_description():
                 get_package_share_directory('hobot_usb_cam'),
                 'launch/hobot_usb_cam.launch.py')),
         launch_arguments={
-            'usb_frame_id': '0',
+            'usb_frame_id': 'usb_cam_0',
             'usb_source_id': '0',
             'usb_framerate': LaunchConfiguration('cam0_fps'),
             'usb_image_width': '640',
@@ -105,7 +105,7 @@ def generate_launch_description():
                 get_package_share_directory('hobot_usb_cam'),
                 'launch/hobot_usb_cam.launch.py')),
         launch_arguments={
-            'usb_frame_id': '1',
+            'usb_frame_id': 'usb_cam_1',
             'usb_source_id': '1',
             'usb_framerate': LaunchConfiguration('cam1_fps'),
             'usb_image_width': '640',
@@ -126,7 +126,7 @@ def generate_launch_description():
             'codec_channel': '0',
             'codec_in_mode': 'ros',
             'codec_input_framerate': LaunchConfiguration('cam0_fps'),
-            'codec_output_framerate': '15',
+            'codec_output_framerate': '25',
             'codec_out_mode': 'shared_mem',
             'codec_sub_topic': '/image_0',
             'codec_pub_topic': '/hbmem_img_0'
@@ -142,7 +142,7 @@ def generate_launch_description():
             'codec_channel': '1',
             'codec_in_mode': 'ros',
             'codec_input_framerate': LaunchConfiguration('cam1_fps'),
-            'codec_output_framerate': '15',
+            'codec_output_framerate': '25',
             'codec_out_mode': 'shared_mem',
             'codec_sub_topic': '/image_1',
             'codec_pub_topic': '/hbmem_img_1'

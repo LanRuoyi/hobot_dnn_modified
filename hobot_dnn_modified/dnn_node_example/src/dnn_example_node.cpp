@@ -236,6 +236,22 @@ DnnExampleNode::DnnExampleNode(const std::string &node_name,
                 model_input_height_);
   }
 
+  if (GetModel()) {
+    int model_batch_input_count = GetModel()->GetBatchInputCount();
+    int model_input_count = GetModel()->GetInputCount();
+    int model_batch_size = 1;
+    if (model_input_count > 0) {
+      model_batch_size = model_batch_input_count / model_input_count;
+    }
+    if (enable_batch_sync_ && model_batch_size < 2) {
+      RCLCPP_WARN(rclcpp::get_logger("example"),
+                  "Model batch size is %d, disable batch sync and fallback to single input infer.",
+                  model_batch_size);
+      enable_batch_sync_ = 0;
+      batch_size_ = 1;
+    }
+  }
+
   // 创建AI消息发布者，batch模式按batch数发布多路topic
   if (batch_size_ > 1) {
     batch_msg_publishers_.resize(static_cast<size_t>(batch_size_));
@@ -1098,10 +1114,6 @@ void DnnExampleNode::SharedMemImgProcessBatch0(
   if (!msg || !rclcpp::ok()) {
     return;
   }
-  if (sync_source0_index_ >= 0 &&
-      static_cast<int>(msg->index) != sync_source0_index_) {
-    return;
-  }
   {
     std::lock_guard<std::mutex> lk(sync_queue_mtx_);
     sync_queue0_.push_back(msg);
@@ -1115,10 +1127,6 @@ void DnnExampleNode::SharedMemImgProcessBatch0(
 void DnnExampleNode::SharedMemImgProcessBatch1(
     const hbm_img_msgs::msg::HbmMsg1080P::ConstSharedPtr msg) {
   if (!msg || !rclcpp::ok()) {
-    return;
-  }
-  if (sync_source1_index_ >= 0 &&
-      static_cast<int>(msg->index) != sync_source1_index_) {
     return;
   }
   {
@@ -1225,6 +1233,16 @@ int DnnExampleNode::RunBatchInfer(
   }
 
   auto inputs = std::vector<std::shared_ptr<DNNInput>>{pyramid0, pyramid1};
+  if (GetModel()) {
+    int expected_inputs = GetModel()->GetBatchInputCount();
+    if (expected_inputs > 0 && static_cast<int>(inputs.size()) != expected_inputs) {
+      RCLCPP_ERROR(rclcpp::get_logger("example"),
+                   "Batch infer input size mismatch, expected %d, got %zu",
+                   expected_inputs,
+                   inputs.size());
+      return -1;
+    }
+  }
   auto dnn_output = std::make_shared<DnnExampleOutput>();
   dnn_output->msg_header = std::make_shared<std_msgs::msg::Header>();
   dnn_output->msg_header->set__frame_id("batch");

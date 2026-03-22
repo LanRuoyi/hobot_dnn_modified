@@ -66,6 +66,7 @@ int32_t ModelInferTask::SetInputs(
       "Here inputs size != batch_input_count. Pyramid batch model must set "
       "separate inputs to process, such as: model input is batch n, you should "
       "prepare n inputs to process.");
+    return HB_DNN_INVALID_ARGUMENT;
   }
 
   for (int32_t i{0}; i < batch_input_count; ++i) {
@@ -113,16 +114,15 @@ void ModelInferTask::Reset() {
 int32_t ModelInferTask::ProcessInput() {
   // if model is pyramid batch input, broadcast processor
   // and do batch separate infer
-  auto const input_tensor_size{1};
   auto const model_input_count{model_->GetInputCount()};
-  auto const batch_size{1};
-  if (model_input_count != input_tensor_size) {
-    int32_t index{input_tensor_size - 1};
-    for (int32_t i{model_input_count - 1}; i >= 0; i--) {
-      for (int32_t j{0}; j < batch_size; j++) {
-        index--;
-      }
-    }
+  if (model_input_count <= 0) {
+    RCLCPP_ERROR(rclcpp::get_logger("dnn"), "Invalid model_input_count: %d", model_input_count);
+    return HB_DNN_INVALID_ARGUMENT;
+  }
+  auto const batch_input_count{model_->GetBatchInputCount()};
+  int32_t batch_size = batch_input_count / model_input_count;
+  if (batch_size <= 0) {
+    batch_size = 1;
   }
 
   int32_t process_count{0};
@@ -130,10 +130,11 @@ int32_t ModelInferTask::ProcessInput() {
   // pyramid batch model's inputs_ must be separate
   for (size_t i{0U}; i < inputs_.size(); i++) {
     if (inputs_[i] != nullptr) {
+      int32_t input_index = static_cast<int32_t>(i) % model_input_count;
 
       if (input_tensors_[i] == nullptr) {
         model_->GetInputTensorProperties(input_dnn_tensors_[i].properties,
-                                         static_cast<int32_t>(i) / batch_size);
+                                         input_index);
         // DNNInput only support seperate address
         input_dnn_tensors_[i].properties.validShape.dimensionSize[0] =
             1;
@@ -148,7 +149,7 @@ int32_t ModelInferTask::ProcessInput() {
       std::shared_ptr<CropProcessor> input_processor = std::make_shared<CropProcessor>();
 
       hbDNNTensorProperties tensor_properties;
-      hbDNNGetInputTensorProperties(&tensor_properties, model_->GetDNNHandle(), i);
+      hbDNNGetInputTensorProperties(&tensor_properties, model_->GetDNNHandle(), input_index);
       if (tensor_properties.tensorLayout == HB_DNN_LAYOUT_NHWC) {
         input_conf->width = tensor_properties.validShape.dimensionSize[2];
         input_conf->height = tensor_properties.validShape.dimensionSize[1];
