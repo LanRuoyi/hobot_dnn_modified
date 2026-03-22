@@ -165,6 +165,9 @@ ros2 run dnn_node_example example --ros-args -p feed_type:=1 --ros-args --log-le
 # 运行模式3：使用shared mem通信方式(topic为/hbmem_img)通过异步模式进行预测，并设置log级别为warn
 ros2 run dnn_node_example example --ros-args -p feed_type:=1 -p is_shared_mem_sub:=1 --ros-args --log-level warn
 
+# 运行模式4（x5）：YOLO11-seg实例分割，本地图片回灌（仅支持batch=1）
+ros2 run dnn_node_example example --ros-args -p feed_type:=0 -p image:=config/test.jpg -p image_type:=0 -p config_file:=config/yolo11segworkconfig.json
+
 ```
 
 运行方式2，使用launch文件启动：
@@ -181,6 +184,9 @@ export CAM_TYPE=mipi
 # 启动launch文件，使用F37 sensor通过shared mem方式发布nv12格式图片
 # 默认运行fcos算法，启动命令中使用参数config_file切换算法，如使用unet算法config_file:="config/mobilenet_unet_workconfig.json"
 ros2 launch dnn_node_example dnn_node_example.launch.py
+
+# YOLO11-seg本地图片回灌launch（x5，默认配置为config/yolo11segworkconfig.json，仅支持batch=1）
+ros2 launch dnn_node_example dnn_node_example_yolo11_seg_feedback.launch.py
 ```
 
 ## X3 yocto系统上运行
@@ -277,13 +283,15 @@ ros2 launch dnn_node_example dnn_node_example.launch.py dnn_example_config_file:
   | fcos_512x512_nv12                      | 检测模型 | x3/x5/x86 | 输出检测到的物体和检测框                 | ![image](./render/fcos.jpeg)          |
   | efficient_det_no_dequanti_512x512_nv12 | 检测模型 | x3 | 输出检测到的物体和检测框                 | ![image](./render/efficient_det.jpeg) |
   | multitask_body_kps_960x544.hbm         | 检测模型 | x3/x5/x86 | 输出检测到body检测框和人体kps指标点      | ![image](./render/body_kps.jpeg)      |
+  | road_seg_bayese_960x960_nv12.bin       | 实例分割模型 | x5 | 输出检测框和实例mask（YOLO11-seg）       | -                                     |
   | mobilenetv2_224x224_nv12.bin           | 分类模型 | x3/x5/x86 | 输出置信度最大的分类结果                 | ![image](./render/mobilenetv2.jpeg)   |
   | mobilenet_unet_1024x2048_nv12.bin      | 分割模型 | x3/x5/x86 | 语义分割，输出每个像素点对应其种类的图像 | ![image](./render/unet.jpeg)          |
 
-  "dnn_Parser"设置选择内置的后处理算法，目前支持的配置有`"yolov2","yolov3","yolov5","yolov5x","kps_parser","classification","ssd","efficient_det","fcos","unet"`。
+  "dnn_Parser"设置选择内置的后处理算法，目前支持的配置有`"yolov2","yolov3","yolov5","yolov5x","yolo11","yolo11_seg","kps_parser","classification","ssd","efficient_det","fcos","unet"`。
   "model_output_count"为模型输出branch个数。
 
 - 分割模型算法暂时只支持本地图片回灌，无web效果展示
+- yolo11-seg当前仅支持batch=1。
 
 
 # 结果分析

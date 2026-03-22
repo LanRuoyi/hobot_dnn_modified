@@ -38,6 +38,7 @@
 #include "dnn_node/util/output_parser/detection/ptq_yolo5_output_parser.h"
 #include "dnn_node/util/output_parser/detection/ptq_yolov5x_output_parser.h"
 #include "dnn_node/util/output_parser/detection/ptq_yolo11_output_parser.h"
+#include "dnn_node/util/output_parser/detection/ptq_yolo11_seg_output_parser.h"
 #include "dnn_node/util/output_parser/segmentation/ptq_unet_output_parser.h"
 
 #include "include/image_utils.h"
@@ -421,6 +422,9 @@ int DnnExampleNode::LoadConfig() {
     } else if ("yolo11" == str_parser) {
       parser = DnnParserType::YOLO11_PARSER;
       ret = hobot::dnn_node::parser_yolo11::LoadConfig(document);
+    } else if ("yolo11_seg" == str_parser) {
+      parser = DnnParserType::YOLO11_SEG_PARSER;
+      ret = hobot::dnn_node::parser_yolo11_seg::LoadConfig(document);
 #endif
     } else if ("classification" == str_parser) {
       parser = DnnParserType::CLASSIFICATION_PARSER;
@@ -436,7 +440,7 @@ int DnnExampleNode::LoadConfig() {
     } else {
       std::stringstream ss;
       ss << "Error! Invalid parser: " << str_parser
-         << " . Only yolov2, yolov3, yolov5, yolov5x, yolo11, ssd, fcos"
+        << " . Only yolov2, yolov3, yolov5, yolov5x, yolo11, yolo11_seg, ssd, fcos"
          << " efficient_det, classification, unet are supported";
       RCLCPP_ERROR(rclcpp::get_logger("example"), "%s", ss.str().c_str());
       return -3;
@@ -535,6 +539,9 @@ int DnnExampleNode::PostProcess(
       case DnnParserType::YOLO11_PARSER:
         parse_ret = hobot::dnn_node::parser_yolo11::Parse(node_output, det_result, batch_idx);
         break;
+      case DnnParserType::YOLO11_SEG_PARSER:
+        parse_ret = hobot::dnn_node::parser_yolo11_seg::Parse(node_output, det_result, batch_idx);
+        break;
 #endif
       case DnnParserType::CLASSIFICATION_PARSER:
         parse_ret = hobot::dnn_node::parser_mobilenetv2::Parse(node_output, det_result);
@@ -577,11 +584,22 @@ int DnnExampleNode::PostProcess(
     ai_msgs::msg::PerceptionTargets::UniquePtr pub_data(
         new ai_msgs::msg::PerceptionTargets());
 
+    auto det_list = det_result->perception.det;
+    auto &mask_info = det_result->perception.mask;
+    bool has_instance_mask = !mask_info.det_info.empty() &&
+                             mask_info.width > 0 &&
+                             mask_info.height > 0;
+    if (has_instance_mask) {
+      det_list = mask_info.det_info;
+    }
+
     RCLCPP_INFO(rclcpp::get_logger("PostProcessBase"),
                 "batch[%d] out box size: %d",
                 batch_idx,
-                det_result->perception.det.size());
-    for (auto &rect : det_result->perception.det) {
+                det_list.size());
+    size_t mask_one_size = static_cast<size_t>(mask_info.width) * mask_info.height;
+    for (size_t det_i = 0; det_i < det_list.size(); ++det_i) {
+      auto &rect = det_list[det_i];
       if (rect.bbox.xmin < 0) rect.bbox.xmin = 0;
       if (rect.bbox.ymin < 0) rect.bbox.ymin = 0;
       if (rect.bbox.xmax >= model_input_width_) {
@@ -602,6 +620,20 @@ int DnnExampleNode::PostProcess(
       ai_msgs::msg::Target target;
       target.set__type(rect.class_name);
       target.rois.emplace_back(roi);
+
+      if (has_instance_mask &&
+          mask_one_size > 0 &&
+          mask_info.mask_info.size() >= (det_i + 1) * mask_one_size) {
+        ai_msgs::msg::Capture capture;
+        auto begin_it = mask_info.mask_info.begin() + det_i * mask_one_size;
+        auto end_it = begin_it + mask_one_size;
+        capture.features.assign(begin_it, end_it);
+        capture.img.height = mask_info.height;
+        capture.img.width = mask_info.width;
+        capture.img.step = 1;
+        target.captures.emplace_back(std::move(capture));
+      }
+
       pub_data->targets.emplace_back(std::move(target));
     }
 

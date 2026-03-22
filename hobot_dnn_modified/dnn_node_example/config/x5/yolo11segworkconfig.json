@@ -1,0 +1,14 @@
+{
+	"model_file": "/opt/hobot/model/x5/basic/road_seg_bayese_960x960_nv12.bin",
+	"model_name": "road_seg_bayese_960x960_nv12",
+	"dnn_Parser": "yolo11_seg",
+	"class_num": 1,
+	"task_num": 2,
+	"cls_names_list": "config/road_seg.list",
+	"strides": [8, 16, 32],
+	"reg": 16,
+	"mask_channels": 32,
+	"score_threshold": 0.25,
+	"nms_threshold": 0.7,
+	"nms_top_k": 300
+}

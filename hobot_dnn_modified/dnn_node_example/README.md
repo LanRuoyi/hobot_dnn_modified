@@ -162,6 +162,10 @@ ros2 run dnn_node_example example --ros-args -p feed_type:=1 --ros-args --log-le
 # Run mode 3: Use shared memory communication method (topic is /hbmem_img) to perform inference in asynchronous mode and set the log level to warn:
 
 ros2 run dnn_node_example example --ros-args -p feed_type:=1 -p is_shared_mem_sub:=1 --ros-args --log-level warn
+
+# Run mode 4 (x5): YOLO11-seg instance segmentation with local image (batch=1 only):
+
+ros2 run dnn_node_example example --ros-args -p feed_type:=0 -p image:=config/test.jpg -p image_type:=0 -p config_file:=config/yolo11segworkconfig.json
 ```
 
 To run in mode 2 using a launch file:
@@ -178,6 +182,9 @@ export CAM_TYPE=mipi
 # Start the launch file, publish nv12 format images using shared memory with F37 sensor
 # By default, it runs the fcos algorithm, switch algorithms using the config_file parameter in the launch command, e.g., to use unet algorithm: config_file:="config/mobilenet_unet_workconfig.json"
 ros2 launch dnn_node_example dnn_node_example.launch.py
+
+# YOLO11-seg local feedback launch (x5, default config is config/yolo11segworkconfig.json, batch=1 only)
+ros2 launch dnn_node_example dnn_node_example_yolo11_seg_feedback.launch.py
 ```
 
 ## Run on X3 Yocto system:
@@ -258,13 +265,15 @@ ros2 launch dnn_node_example dnn_node_example.launch.py dnn_example_config_file:
   | fcos_512x512_nv12                      | Detection model | x3/x86 | Output detected objects and bounding boxes | ![image](./render/fcos.jpeg)          |
   | efficient_det_no_dequanti_512x512_nv12 | Detection model | x3 | Output detected objects and bounding boxes | ![image](./render/efficient_det.jpeg) |
   | multitask_body_kps_960x544.hbm         | Detection model | x3/x86 | Output detected body bounding boxes and human keypoint indices | ![image](./render/body_kps.jpeg)      |
+  | road_seg_bayese_960x960_nv12.bin       | Instance segmentation model | x5 | Output detection boxes and instance masks (YOLO11-seg) | - |
   | mobilenetv2_224x224_nv12.bin           | Classification model | x3/x86 | Output the class result with the highest confidence | ![image](./render/mobilenetv2.jpeg)   |
   | mobilenet_unet_1024x2048_nv12.bin      | Segmentation model | x3/x86 | Semantic segmentation, output image with each pixel corresponding to its class | ![image](./render/unet.jpeg)          |
 
-"dnn_Parser" setting chooses the built-in post-processing algorithm, currently support configurations include `"yolov2", "yolov3", "yolov5", "yolov5x", "kps_parser", "classification", "ssd", "efficient_det", "fcos", "unet"`.
+"dnn_Parser" setting chooses the built-in post-processing algorithm, currently support configurations include `"yolov2", "yolov3", "yolov5", "yolov5x", "yolo11", "yolo11_seg", "kps_parser", "classification", "ssd", "efficient_det", "fcos", "unet"`.
 "model_output_count" represents the number of model output branches.
 
 - Segmentation model algorithm currently only supports local image feedback and does not have web display functionality.
+- YOLO11-seg currently supports batch=1 only.
 
 # Results Analysis
 

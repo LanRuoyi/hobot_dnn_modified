@@ -55,6 +55,7 @@ enum class DnnParserType {
   YOLOV5_PARSER,          // 对应dnn_node中yolov5的output_parser算法
   YOLOV5X_PARSER,         // 对应dnn_node中yolov5x的output_Parser算法
   YOLO11_PARSER,          // 新增YOLO11解析器
+  YOLO11_SEG_PARSER,      // YOLO11-seg实例分割解析器（仅batch=1）
   CLASSIFICATION_PARSER,  // 对应dnn_node中classification的output_parser算法
   SSD_PARSER,
   EFFICIENTDET_PARSER,
