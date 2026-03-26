@@ -123,6 +123,7 @@ int InitStrides(const std::vector<int> &strides, int model_output_count) {
 
 int ParseTensorToFloat(const std::shared_ptr<DNNTensor> &tensor,
                        int batch_index,
+                       int expected_channel,
                        std::vector<float> &data,
                        int &height,
                        int &width,
@@ -133,18 +134,37 @@ int ParseTensorToFloat(const std::shared_ptr<DNNTensor> &tensor,
 
   hbSysFlushMem(&(tensor->sysMem[0]), HB_SYS_MEM_CACHE_INVALIDATE);
 
-  int h_index = 0;
-  int w_index = 0;
-  int c_index = 0;
-  if (hobot::dnn_node::output_parser::TensorUtils::GetTensorHWCIndex(
-          tensor->properties.tensorLayout,
-          &h_index,
-          &w_index,
-          &c_index) != 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("Yolo11_seg_parser"),
-                 "unsupported tensor layout: %d",
-                 tensor->properties.tensorLayout);
-    return -1;
+  // 有些模型会出现tensorLayout标记与shape维度顺序不一致的情况，
+  // 这里优先依据expected_channel和shape自动推断布局。
+  int h_index = 1;
+  int w_index = 2;
+  int c_index = 3;
+  bool infer_nhwc = true;
+
+  int d1 = tensor->properties.validShape.dimensionSize[1];
+  int d2 = tensor->properties.validShape.dimensionSize[2];
+  int d3 = tensor->properties.validShape.dimensionSize[3];
+
+  bool d3_is_channel = (expected_channel > 0 && d3 == expected_channel);
+  bool d1_is_channel = (expected_channel > 0 && d1 == expected_channel);
+
+  if (d1_is_channel && !d3_is_channel) {
+    infer_nhwc = false;
+  } else if (!d1_is_channel && d3_is_channel) {
+    infer_nhwc = true;
+  } else {
+    // 兜底按照layout，但仍允许后续按shape正常读取。
+    infer_nhwc = (tensor->properties.tensorLayout == HB_DNN_LAYOUT_NHWC);
+  }
+
+  if (infer_nhwc) {
+    h_index = 1;
+    w_index = 2;
+    c_index = 3;
+  } else {
+    c_index = 1;
+    h_index = 2;
+    w_index = 3;
   }
 
   const int n = tensor->properties.validShape.dimensionSize[0];
@@ -205,7 +225,7 @@ int ParseTensorToFloat(const std::shared_ptr<DNNTensor> &tensor,
   };
 
   data.resize(static_cast<size_t>(height) * width * channel);
-  const bool is_nhwc = (tensor->properties.tensorLayout == HB_DNN_LAYOUT_NHWC);
+  const bool is_nhwc = infer_nhwc;
 
   auto write_value = [&](int h, int w, int c, float value) {
     const size_t out_offset = (static_cast<size_t>(h) * width + w) * channel + c;
@@ -436,57 +456,105 @@ int PostProcess(std::vector<std::shared_ptr<DNNTensor>> &output_tensors,
     return -1;
   }
 
-  std::vector<int> cls_indices;
-  std::vector<int> bbox_indices;
-  std::vector<int> coeff_indices;
-  int proto_index = -1;
-  int proto_hw = -1;
+  struct HeadMeta {
+    int idx = -1;
+    int h = 0;
+    int w = 0;
+    int c = 0;
+  };
+  std::vector<HeadMeta> cls_heads;
+  std::vector<HeadMeta> bbox_heads;
+  std::vector<HeadMeta> mask_heads;
 
   const int class_num = yolo11_seg_config_.class_num;
   const int reg_dim = yolo11_seg_config_.reg_dim;
   const int mask_channels = yolo11_seg_config_.mask_channels;
 
   for (size_t i = 0; i < output_tensors.size(); ++i) {
-    int h = 0;
-    int w = 0;
-    int c = 0;
-    if (hobot::dnn_node::output_parser::TensorUtils::GetTensorValidHWC(
-            &(output_tensors[i]->properties),
-            &h,
-            &w,
-            &c) != 0) {
-      continue;
+    int d1 = output_tensors[i]->properties.validShape.dimensionSize[1];
+    int d2 = output_tensors[i]->properties.validShape.dimensionSize[2];
+    int d3 = output_tensors[i]->properties.validShape.dimensionSize[3];
+
+    int h = d1;
+    int w = d2;
+    int c = d3;
+    // 优先使用[N,H,W,C]识别；若不命中，再尝试[N,C,H,W]。
+    if (!(c == class_num || c == reg_dim * 4 || c == mask_channels)) {
+      if (d1 == class_num || d1 == reg_dim * 4 || d1 == mask_channels) {
+        c = d1;
+        h = d2;
+        w = d3;
+      }
     }
 
     if (c == class_num) {
-      cls_indices.push_back(static_cast<int>(i));
+      cls_heads.push_back(HeadMeta{static_cast<int>(i), h, w, c});
+      RCLCPP_INFO(rclcpp::get_logger("Yolo11_seg_parser"),
+                  "map output[%zu] as cls head: h=%d w=%d c=%d",
+                  i,
+                  h,
+                  w,
+                  c);
       continue;
     }
     if (c == reg_dim * 4) {
-      bbox_indices.push_back(static_cast<int>(i));
+      bbox_heads.push_back(HeadMeta{static_cast<int>(i), h, w, c});
+      RCLCPP_INFO(rclcpp::get_logger("Yolo11_seg_parser"),
+                  "map output[%zu] as bbox head: h=%d w=%d c=%d",
+                  i,
+                  h,
+                  w,
+                  c);
       continue;
     }
     if (c == mask_channels) {
-      const int hw = h * w;
-      if (hw > proto_hw) {
-        if (proto_index >= 0) {
-          coeff_indices.push_back(proto_index);
-        }
-        proto_hw = hw;
-        proto_index = static_cast<int>(i);
-      } else {
-        coeff_indices.push_back(static_cast<int>(i));
-      }
+      mask_heads.push_back(HeadMeta{static_cast<int>(i), h, w, c});
+      RCLCPP_INFO(rclcpp::get_logger("Yolo11_seg_parser"),
+                  "map output[%zu] as mask/proto candidate: h=%d w=%d c=%d",
+                  i,
+                  h,
+                  w,
+                  c);
     }
   }
 
-  if (cls_indices.size() != 3 || bbox_indices.size() != 3 ||
-      coeff_indices.size() != 3 || proto_index < 0) {
+  if (mask_heads.empty()) {
+    RCLCPP_ERROR(rclcpp::get_logger("Yolo11_seg_parser"),
+                 "mask_heads is empty");
+    return -1;
+  }
+
+  // mask通道里分辨率最大的作为proto，其余作为coeff分支
+  auto proto_it = std::max_element(
+      mask_heads.begin(),
+      mask_heads.end(),
+      [](const HeadMeta &a, const HeadMeta &b) { return a.h * a.w < b.h * b.w; });
+  int proto_index = proto_it->idx;
+  int proto_h = proto_it->h;
+  int proto_w = proto_it->w;
+
+  std::vector<HeadMeta> coeff_heads;
+  coeff_heads.reserve(mask_heads.size() - 1);
+  for (const auto &m : mask_heads) {
+    if (m.idx != proto_index) {
+      coeff_heads.push_back(m);
+    }
+  }
+
+  RCLCPP_INFO(rclcpp::get_logger("Yolo11_seg_parser"),
+              "proto selected: output[%d], h=%d, w=%d; coeff head count=%zu",
+              proto_index,
+              proto_h,
+              proto_w,
+              coeff_heads.size());
+
+  if (cls_heads.size() != 3 || bbox_heads.size() != 3 ||
+      coeff_heads.size() != 3 || proto_index < 0) {
     RCLCPP_ERROR(rclcpp::get_logger("Yolo11_seg_parser"),
                  "can not map yolo11-seg outputs, cls=%zu bbox=%zu coeff=%zu proto=%d",
-                 cls_indices.size(),
-                 bbox_indices.size(),
-                 coeff_indices.size(),
+                 cls_heads.size(),
+                 bbox_heads.size(),
+                 coeff_heads.size(),
                  proto_index);
     return -1;
   }
@@ -494,7 +562,33 @@ int PostProcess(std::vector<std::shared_ptr<DNNTensor>> &output_tensors,
   std::vector<Yolo11SegBranch> branches;
   branches.reserve(3);
 
-  for (size_t i = 0; i < cls_indices.size(); ++i) {
+  for (const auto &cls_head : cls_heads) {
+    auto bbox_it = std::find_if(
+        bbox_heads.begin(),
+        bbox_heads.end(),
+        [&](const HeadMeta &m) { return m.h == cls_head.h && m.w == cls_head.w; });
+    auto coeff_it = std::find_if(
+        coeff_heads.begin(),
+        coeff_heads.end(),
+        [&](const HeadMeta &m) { return m.h == cls_head.h && m.w == cls_head.w; });
+
+    if (bbox_it == bbox_heads.end() || coeff_it == coeff_heads.end()) {
+      RCLCPP_ERROR(rclcpp::get_logger("Yolo11_seg_parser"),
+                   "can not pair heads by shape for cls head output[%d] h=%d w=%d",
+                   cls_head.idx,
+                   cls_head.h,
+                   cls_head.w);
+      return -1;
+    }
+
+    RCLCPP_INFO(rclcpp::get_logger("Yolo11_seg_parser"),
+                "pair branch: cls output[%d], bbox output[%d], coeff output[%d], h=%d, w=%d",
+                cls_head.idx,
+                bbox_it->idx,
+                coeff_it->idx,
+                cls_head.h,
+                cls_head.w);
+
     std::vector<float> cls_data;
     std::vector<float> bbox_data;
     std::vector<float> coeff_data;
@@ -508,20 +602,23 @@ int PostProcess(std::vector<std::shared_ptr<DNNTensor>> &output_tensors,
     int coeff_w = 0;
     int coeff_c = 0;
 
-    if (ParseTensorToFloat(output_tensors[cls_indices[i]],
+    if (ParseTensorToFloat(output_tensors[cls_head.idx],
                            batch_index,
+                           class_num,
                            cls_data,
                            cls_h,
                            cls_w,
                            cls_c) != 0 ||
-        ParseTensorToFloat(output_tensors[bbox_indices[i]],
+      ParseTensorToFloat(output_tensors[bbox_it->idx],
                            batch_index,
+                           reg_dim * 4,
                            bbox_data,
                            bbox_h,
                            bbox_w,
                            bbox_c) != 0 ||
-        ParseTensorToFloat(output_tensors[coeff_indices[i]],
+      ParseTensorToFloat(output_tensors[coeff_it->idx],
                            batch_index,
+                           mask_channels,
                            coeff_data,
                            coeff_h,
                            coeff_w,
@@ -566,11 +663,10 @@ int PostProcess(std::vector<std::shared_ptr<DNNTensor>> &output_tensors,
   }
 
   std::vector<float> proto_data;
-  int proto_h = 0;
-  int proto_w = 0;
   int proto_c = 0;
   if (ParseTensorToFloat(output_tensors[proto_index],
                          batch_index,
+                         mask_channels,
                          proto_data,
                          proto_h,
                          proto_w,

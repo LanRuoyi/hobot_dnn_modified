@@ -29,11 +29,11 @@ def generate_launch_description():
     )
 
     img_file_launch_arg = DeclareLaunchArgument(
-        "dnn_example_image", default_value=TextSubstitution(text="config/test.jpg")
+        "dnn_example_image", default_value=TextSubstitution(text="config/DJI_0388.jpg")
     )
 
     dump_render_launch_arg = DeclareLaunchArgument(
-        "dnn_example_dump_render_img", default_value=TextSubstitution(text="0")
+        "dnn_example_dump_render_img", default_value=TextSubstitution(text="1")
     )
 
     dnn_node_example_path = os.path.join(
