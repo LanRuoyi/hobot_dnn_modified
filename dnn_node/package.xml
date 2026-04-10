@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>dnn_node</name>
+  <version>2.4.0</version>
+  <description>TogetheROS dnn node</description>
+  <maintainer email="kao.zhu@horizon.ai">zhukao</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>ament_cmake_gtest</depend>
+
+  <depend condition="$PLATFORM == X3">hobot-dnn</depend>
+  <depend condition="$PLATFORM == Rdkultra">hobot-dnn</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
